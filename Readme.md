@@ -16,7 +16,7 @@ Hole dir das offizielle Browser-Plugin direkt aus dem Edge Add-on Store:
 
 ### Schritt 2: Windows-Komponente (Installer) herunterladen
 Damit die Erweiterung mit deinem PC kommunizieren darf, lade dir unseren signierten Windows-Installer herunter:
-👉 **[MMUnblockPro_Setup.exe herunterladen](https://github.com/DEIN_GITHUB_NAME/MMUnblockPro/releases/latest)**
+👉 **[MMUnblockPro_Setup.exe herunterladen](https://github.com/manfred-mueller/MMUnBlockPro/releases/latest)**
 
 *Mache einfach einen Doppelklick auf die heruntergeladene Setup-Datei. Der Installer richtet alle notwendigen Pfade und Registry-Einträge vollautomatisch ein.*
 
