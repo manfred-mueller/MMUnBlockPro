@@ -1,0 +1,18 @@
+﻿{
+  "manifest_version": 3,
+  "name": "MMUnblock Pro",
+  "version": "1.1",
+  "description": "Entsperrt Downloads interaktiv oder per Whitelist an jedem Speicherort.",
+  "permissions": [
+    "downloads",
+    "nativeMessaging",
+    "notifications",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

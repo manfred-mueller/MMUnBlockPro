@@ -1,0 +1,9 @@
+﻿{
+  "name": "com.mmunblock",
+  "description": "Entsperrt heruntergeladene Dateien automatisch",
+  "path": "C:\\DeinPfadZumOrdner\\mmunblockhost.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "extension://DEINE_EDGE_ERWEITERUNGS_ID_HIER/"
+  ]
+}

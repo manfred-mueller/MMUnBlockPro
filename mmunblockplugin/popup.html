@@ -1,0 +1,22 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: sans-serif; width: 250px; padding: 10px; margin: 0; }
+    h3 { margin-top: 0; color: #333; }
+    textarea { width: 100%; height: 60px; box-sizing: border-box; resize: vertical; }
+    button { margin-top: 8px; width: 100%; background: #0078d7; color: white; border: none; padding: 6px; cursor: pointer; }
+    button:hover { background: #005a9e; }
+    .hint { font-size: 11px; color: #666; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h3>MMUnblock Whitelist</h3>
+  <p class="hint">Eine Domain pro Zeile eintragen (z.B. github.com):</p>
+  <textarea id="whitelist" placeholder="github.com&#10;my-server.local"></textarea>
+  <button id="save">Speichern</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
