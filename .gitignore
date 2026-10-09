@@ -10,7 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
-*.ps1
+# Persoenliches Hilfsskript (ueberschreibt die README) - nicht einchecken
+Readme.ps1
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -428,3 +429,18 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Build-Ausgaben (Build-All.ps1)
+/build/
+/dist/
+
+# Release-Artefakte und lokale Werkzeug-Ausgaben
+/MMUnblockPro_Setup.exe
+/MMUnBlockPro-*.xpi
+*.xpi
+web-ext-artifacts/
+.amo-upload-uuid
+Logfile.PML
+*.PML
+log.txt
+manifest.old.json

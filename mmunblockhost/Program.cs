@@ -18,7 +18,7 @@ class Program
                 if (string.IsNullOrEmpty(filePath)) break;
 
                 // Der Host geht davon aus, dass die mmunblock.exe im selben Ordner liegt
-                string cliPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mmunblock.exe");
+                string cliPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "mmunblock.exe");
                 
                 if (File.Exists(cliPath))
                 {

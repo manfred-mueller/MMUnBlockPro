@@ -1,37 +1,39 @@
 ﻿# MMUnblockPro 🚀
 
-**MMUnblockPro** ist eine professionelle Windows-Erweiterung für Mozilla Firefox, mit der du die NTFS-Zonenerkennung ("Mark of the Web") von heruntergeladenen Dateien vollautomatisch und direkt im Browser entfernen kannst. Schluss mit dem manuellen Rechtsklick -> "Zulassen" in den Dateieigenschaften!
+**MMUnblockPro** ist eine professionelle Windows-Erweiterung für Mozilla Firefox, Google Chrome und Microsoft Edge, mit der du die NTFS-Zonenerkennung ("Mark of the Web") von heruntergeladenen Dateien vollautomatisch und direkt im Browser entfernen kannst. Schluss mit dem manuellen Rechtsklick -> "Zulassen" in den Dateieigenschaften!
 
-Das Projekt besteht aus einer offiziellen Firefox-Erweiterung und einem im Hintergrund agierenden, via **Certum digital signierten** Windows-Dienst (Native Messaging Host).
+Das Projekt besteht aus einer Browser-Erweiterung (Firefox, Chrome, Edge) und einem im Hintergrund agierenden, via **Certum digital signierten** Windows-Dienst (Native Messaging Host).
 
 ---
 
 ## 🛠️ Installation
 
-Da moderne Browser aus Sicherheitsgründen streng isoliert sind, besteht die Installation aus **zwei einfachen Schritten**:
+Die Erweiterung braucht zusätzlich eine kleine Windows-Komponente (Native Messaging Host), die das Entsperren übernimmt. Am einfachsten startest du deshalb mit dem Installer.
 
-### Schritt 1: Erweiterung in Mozilla Firefox installieren
-Hole dir das offizielle Browser-Plugin direkt aus dem Firefox Add-on Store (AMO):
-👉 **[Hier geht es zur Firefox Add-on Seite](https://addons.mozilla.org/de/firefox/addon/mmunblock-pro/)** *(Klicke dort auf "Zu Firefox hinzufügen")*
-
-### Schritt 2: Windows-Komponente (Installer) herunterladen
-Damit die Erweiterung mit deinem PC kommunizieren darf, lade dir unseren signierten Windows-Installer herunter:
+### Schritt 1: Windows-Komponente (Installer) herunterladen
 👉 **[MMUnblockPro_Setup.exe herunterladen](https://github.com/manfred-mueller/MMUnBlockPro/releases/latest)**
 
-*Mache einfach einen Doppelklick auf die heruntergeladene Setup-Datei. Der Installer richtet alle notwendigen Pfade und Registry-Einträge vollautomatisch ein.*
+*Doppelklick auf die Setup-Datei genügt, Administratorrechte sind nicht nötig. Der Installer richtet alle Pfade und Registry-Einträge für Firefox, Chrome und Edge ein. Am Ende bietet er an, die Erweiterung direkt im jeweils installierten Browser zu öffnen.*
+
+### Schritt 2: Erweiterung im Browser installieren
+**Mozilla Firefox:** 👉 **[Firefox Add-on Seite (AMO)](https://addons.mozilla.org/de/firefox/addon/mmunblock-pro/)** *(dort auf "Zu Firefox hinzufügen" klicken)*
+
+**Google Chrome / Microsoft Edge:** Die Erweiterung wird über den Chrome Web Store bzw. die Edge-Add-ons-Seite bereitgestellt (nicht gelistet, nur per Link erreichbar); die Links folgen nach der Veröffentlichung. Bis dahin lässt sie sich aus dem Release-Paket (`MMUnblockPro-<Version>-chrome.zip` bzw. `-edge.zip`) als entpackte Erweiterung laden.
+
+> **Hinweis:** Wurde nur die Erweiterung installiert, weist sie selbst darauf hin: Beim ersten Start öffnet sie die Download-Seite des Installers, danach zeigt sie bei Bedarf ein rotes „!“ am Symbol, eine Benachrichtigung und einen Hinweis im Popup.
 
 ---
 
 ## 🔍 Wie es funktioniert
 
 ```
-[ Mozilla Firefox ] ──(Native Messaging)──> [ mmunblockhost.exe ] ──> [ mmunblock.exe (CLI) ]
+[ Firefox / Chrome / Edge ] ──(Native Messaging)──> [ mmunblockhost.exe ] ──> [ mmunblock.exe (CLI) ]
 (Erweiterung erkennt Download)              (Unsichtbarer Vermittler)    (Entsperrt die Datei via Win32-API)
 
 ```
 
-1. **Firefox-Plugin:** Registriert, wenn ein Download erfolgreich abgeschlossen wurde, und sendet den Dateipfad via *Native Messaging* an den Host.
-2. **mmunblockhost.exe:** Nimmt das Signal von Firefox entgegen und startet im Hintergrund blitzschnell das Core-Kommandozeilen-Tool.
+1. **Browser-Erweiterung:** Registriert, wenn ein Download erfolgreich abgeschlossen wurde, und sendet den Dateipfad via *Native Messaging* an den Host.
+2. **mmunblockhost.exe:** Nimmt das Signal vom Browser entgegen und startet im Hintergrund blitzschnell das Core-Kommandozeilen-Tool.
 3. **mmunblock.exe:** Entfernt den `Zone.Identifier`-Datenstrom (Alternative Data Stream) der Datei sauber über die Windows-API.
 
 ---
@@ -47,28 +49,32 @@ Da dieses Tool tief in das System eingreift, um Dateiblockaden zu lösen, steht 
 
 ## 💻 Für Entwickler (Lokaler Build & Test)
 
-Wenn du das Projekt selbst kompilieren oder modifizieren möchtest:
+### Aufbau der Erweiterung
+`mmunblockplugin\manifest.base.json` enthält nur die gemeinsamen Teile. Das Build-Skript erzeugt daraus pro Browser ein eigenes Manifest (Firefox: `gecko`-Einstellungen und `background.scripts`; Chrome/Edge: `background.service_worker`), damit keine browserfremden Schlüssel enthalten sind. Die Version wird nur in `manifest.base.json` gepflegt.
 
-### Lokales Testen der Erweiterung in Firefox
-1. Öffne Firefox und gib in die Adresszeile `about:debugging` ein.
-2. Klicke links auf **"Diesen Firefox"** und dann auf **"Temporäres Add-on laden..."**.
-3. Wähle die `manifest.json` aus dem Erweiterungs-Verzeichnis aus.
-
-### Voraussetzungen für die Windows-Komponente
+### Voraussetzungen
 * [.NET 8.0 SDK](https://dotnet.microsoft.com/download)
-* [Inno Setup Compiler](https://jrsoftware.org/isdl.php) (für den Bau des Installers)
+* [Inno Setup Compiler](https://jrsoftware.org/isdl.php) (für den Installer)
+* [web-ext](https://github.com/mozilla/web-ext) (`npm install --global web-ext`)
+* `signtool.exe` und ein Code-Signing-Zertifikat (optional, mit `-SkipExeSign` übersprungen)
+* Für die Firefox-Signierung die Umgebungsvariablen `AMO-Key` und `AMO-Secret`
 
 ### Build-Prozess
-1. Klone das Repository.
-2. Veröffentliche die beiden C#-Projekte als Single-File-Anwendungen:
-   ```bash
-   cd mmunblock
-   dotnet publish -c Release
-   cd ../mmunblockhost
-   dotnet publish -c Release
-   
+```powershell
+# Nur die Erweiterungs-Ordner erzeugen (build\firefox, build\chrome, build\edge):
+.\Build-All.ps1 -Dev
+
+# Kompletter Build: Lint, Store-Pakete, XPI, EXEs, Installer -> dist\<Version>\
+.\Build-All.ps1
 ```
-3. Öffne die `installer.iss` in Inno Setup und klicke auf **Compile** (`Strg + F9`), um die `MMUnblockPro_Setup.exe` im Ordner `Output/` zu generieren.
+Einzelne Schritte lassen sich mit `-SkipFirefoxSign`, `-SkipExeBuild`, `-SkipExeSign` und `-SkipInstaller` abschalten.
+
+### Lokales Testen der Erweiterung
+* **Firefox:** `about:debugging` → "Diesen Firefox" → "Temporäres Add-on laden..." → `build\firefox\manifest.json` wählen.
+* **Chrome:** `chrome://extensions` → Entwicklermodus → "Entpackte Erweiterung laden" → Ordner `build\chrome` wählen.
+* **Edge:** `edge://extensions` → Entwicklermodus → "Entpackte Erweiterung laden" → Ordner `build\edge` wählen.
+
+Die Sideload-Ordner für Chrome und Edge enthalten einen festen `key`, damit die Extension-ID stabil bleibt (siehe `ChromeExtId` in `MMUnBlockPro.iss`). Nach der Veröffentlichung im Edge-Add-ons-Store muss die dort vergebene ID in `EdgeExtId` eingetragen werden.
 
 ---
 

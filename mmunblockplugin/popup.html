@@ -6,17 +6,24 @@
     body { font-family: sans-serif; width: 250px; padding: 10px; margin: 0; }
     h3 { margin-top: 0; color: #333; }
     textarea { width: 100%; height: 60px; box-sizing: border-box; resize: vertical; }
-    button { margin-top: 8px; width: 100%; background: #0078d7; color: white; border: none; padding: 6px; cursor: pointer; }
+    button { margin-top: 8px; width: 100%; background: #0078d7; color: white; border: none; padding: 6px; cursor: pointer; border-radius: 3px; }
     button:hover { background: #005a9e; }
     .hint { font-size: 11px; color: #666; margin-top: 5px; }
+    #hostwarn { display: none; margin-bottom: 10px; padding: 8px; background: #fdecea; color: #b71c1c; font-size: 12px; border-radius: 3px; }
+    #hostwarn a { color: #b71c1c; font-weight: bold; }
+    #feedback { display: none; margin-top: 8px; padding: 6px; background: #e6f4ea; color: #2e7d32; font-size: 12px; border-radius: 3px; text-align: center; }
   </style>
 </head>
 <body>
+  <div id="hostwarn">
+    <span id="hostmsg"></span>
+    <a id="hostlink" href="https://github.com/manfred-mueller/MMUnBlockPro/releases/latest" target="_blank" rel="noopener">Installer herunterladen</a>
+  </div>
   <h3>MMUnblock Whitelist</h3>
-  <p class="hint">Eine Domain pro Zeile eintragen (z.B. github.com):</p>
+  <p class="hint">Eine Domain pro Zeile eintragen (z.B. github.com; gilt auch für Subdomains):</p>
   <textarea id="whitelist" placeholder="github.com&#10;my-server.local"></textarea>
   <button id="save">Speichern</button>
-
+  <div id="feedback">✓ Whitelist erfolgreich gespeichert!</div>
   <script src="popup.js"></script>
 </body>
 </html>

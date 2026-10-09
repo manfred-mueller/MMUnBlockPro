@@ -6,5 +6,15 @@
   <PublishSingleFile>true</PublishSingleFile>
   <SelfContained>false</SelfContained>
   <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  
+  <!-- PROFI-SETTINGS HIERZUFEUGEN: -->
+  <!-- Zwingt .NET, alle DLLs und Sprachressourcen direkt in die Single-File-EXE einzubetten -->
+  <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+  <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="signtool.exe sign /a /n &quot;Open Source Developer, Mueller Manfred&quot; /t http://time.certum.pl/ /fd sha256 /v &quot;$(TargetDir)$(TargetName).exe&quot;" />
+  </Target>
+
 </Project>

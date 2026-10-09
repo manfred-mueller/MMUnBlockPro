@@ -1,20 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<OutputType>Exe</OutputType>
-		<!-- 1. Upgrade auf net8.0 (Löst die EOL-Warnung) -->
-		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
+<PropertyGroup>
+  <OutputType>Exe</OutputType>
+  <TargetFramework>net8.0</TargetFramework>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <Nullable>enable</Nullable>
+  <PublishSingleFile>true</PublishSingleFile>
+  <SelfContained>false</SelfContained>
+  <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
 
-		<!-- 2. Die funktionierenden Single-File Einstellungen -->
-		<PublishSingleFile>true</PublishSingleFile>
-		<SelfContained>false</SelfContained>
-
-		<!-- 3. DIE COMPRESSION-ZEILE HIER UNBEDINGT LÖSCHEN ODER AUF FALSE SETZEN: -->
-		<EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
-	</PropertyGroup>	
-	
+  <!-- PROFI-SETTINGS HIERZUFEUGEN: -->
+  <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+  <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+</PropertyGroup>	
 	<ItemGroup>
 		<!-- Installiert die fehlende CommandLine-Bibliothek -->
 		<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
