@@ -444,3 +444,6 @@ Logfile.PML
 *.PML
 log.txt
 manifest.old.json
+
+# Rohscreenshots und Haendlerlogo (nur lokal, nicht fuer das Repo)
+/screenshots/

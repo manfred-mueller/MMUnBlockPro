@@ -4,6 +4,10 @@
 
 Das Projekt besteht aus einer Browser-Erweiterung (Firefox, Chrome, Edge) und einem im Hintergrund agierenden, via **Certum digital signierten** Windows-Dienst (Native Messaging Host).
 
+![Benachrichtigung nach dem Download: Datei mit einem Klick entsperren](store-assets/store-screenshot-1-notification.png)
+
+![Vorher/Nachher: Windows-Sperrvermerk der Datei wird entfernt](store-assets/store-screenshot-2-before-after.png)
+
 ---
 
 ## 🛠️ Installation
@@ -18,7 +22,9 @@ Die Erweiterung braucht zusätzlich eine kleine Windows-Komponente (Native Messa
 ### Schritt 2: Erweiterung im Browser installieren
 **Mozilla Firefox:** 👉 **[Firefox Add-on Seite (AMO)](https://addons.mozilla.org/de/firefox/addon/mmunblock-pro/)** *(dort auf "Zu Firefox hinzufügen" klicken)*
 
-**Google Chrome / Microsoft Edge:** Die Erweiterung wird über den Chrome Web Store bzw. die Edge-Add-ons-Seite bereitgestellt (nicht gelistet, nur per Link erreichbar); die Links folgen nach der Veröffentlichung. Bis dahin lässt sie sich aus dem Release-Paket (`MMUnblockPro-<Version>-chrome.zip` bzw. `-edge.zip`) als entpackte Erweiterung laden.
+**Google Chrome:** Die Erweiterung wird über den Chrome Web Store bereitgestellt (nicht gelistet, nur per Link erreichbar); der Link folgt nach der Veröffentlichung. Bis dahin lässt sie sich aus dem Release-Paket (`MMUnblockPro-<Version>-chrome.zip`) als entpackte Erweiterung laden.
+
+**Microsoft Edge:** Edge kann Erweiterungen aus dem Chrome Web Store installieren. Öffne dazu den Chrome-Web-Store-Link in Edge und bestätige oben den Hinweis „Erweiterungen aus anderen Stores zulassen“. Der Installer öffnet die Seite auf Wunsch direkt in Edge.
 
 > **Hinweis:** Wurde nur die Erweiterung installiert, weist sie selbst darauf hin: Beim ersten Start öffnet sie die Download-Seite des Installers, danach zeigt sie bei Bedarf ein rotes „!“ am Symbol, eine Benachrichtigung und einen Hinweis im Popup.
 
@@ -74,7 +80,7 @@ Einzelne Schritte lassen sich mit `-SkipFirefoxSign`, `-SkipExeBuild`, `-SkipExe
 * **Chrome:** `chrome://extensions` → Entwicklermodus → "Entpackte Erweiterung laden" → Ordner `build\chrome` wählen.
 * **Edge:** `edge://extensions` → Entwicklermodus → "Entpackte Erweiterung laden" → Ordner `build\edge` wählen.
 
-Die Sideload-Ordner für Chrome und Edge enthalten einen festen `key`, damit die Extension-ID stabil bleibt (siehe `ChromeExtId` in `MMUnBlockPro.iss`). Nach der Veröffentlichung im Edge-Add-ons-Store muss die dort vergebene ID in `EdgeExtId` eingetragen werden.
+Die Sideload-Ordner für Chrome und Edge enthalten einen festen `key`, damit die Extension-ID stabil bleibt (siehe `ChromeExtId` in `MMUnBlockPro.iss`). Der Schlüssel stammt aus dem Chrome-Web-Store-Dashboard, die Store-ID gilt auch für Edge. `EdgeExtId` bleibt leer.
 
 ---
 
