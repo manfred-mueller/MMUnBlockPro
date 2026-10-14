@@ -6,7 +6,7 @@
   1. Prüft Voraussetzungen (.NET SDK, Inno Setup, web-ext, signtool)
   2. Erzeugt aus mmunblockplugin\manifest.base.json je Browser ein eigenes Manifest
      (build\firefox, build\chrome, build\edge) - ohne browserfremde Schlüssel
-  3. web-ext lint (Firefox), ZIPs für Chrome Web Store / Edge Add-ons / AMO, signiertes XPI
+  3. web-ext lint (Firefox), ZIPs für Chrome Web Store / Edge Add-ons / AMO, Uploads (oder mit -Publish Einreichung)
   4. dotnet publish für mmunblock + mmunblockhost, EXEs signieren (falls nötig)
   5. Inno-Setup-Installer kompilieren
   Ergebnis: dist\<Version>\
@@ -16,32 +16,31 @@
 
 .PARAMETER Dev
   Nur die drei Erweiterungs-Ordner unter build\ erzeugen (zum Laden im Browser).
-.PARAMETER SkipFirefoxSign
-  Firefox-XPI nicht bei AMO signieren (Lint und ZIP laufen trotzdem).
 .PARAMETER SkipExeBuild
   dotnet publish überspringen (vorhandene publish-Ordner verwenden).
 .PARAMETER SkipExeSign
   EXE-Signierung überspringen.
 .PARAMETER SkipInstaller
   Inno-Setup-Build überspringen.
-.PARAMETER UploadChrome
-  Chrome-ZIP in den Chrome Web Store hochladen (Entwurf, nicht veröffentlicht). Benötigt GC-Client, GC-Key, GC-Refresh.
-.PARAMETER PublishChrome
-  Wie -UploadChrome, danach veröffentlichen (geht in die Prüfung). Nur mit Absicht verwenden.
+.PARAMETER SkipUpload
+  Keine Uploads in Chrome Web Store und AMO (nur lokal bauen).
+.PARAMETER Publish
+  Veröffentlichen: Chrome-Version zur Prüfung einreichen und AMO-Version einreichen (beide gehen in die Prüfung).
+  Ohne -Publish wird nur hochgeladen (Chrome als Entwurf, AMO nur validiert).
 #>
 [CmdletBinding()]
 param(
     [switch]$Dev,
-    [switch]$SkipFirefoxSign,
     [switch]$SkipExeBuild,
     [switch]$SkipExeSign,
     [switch]$SkipInstaller,
-    [switch]$UploadChrome,
-    [switch]$PublishChrome
+    [switch]$SkipUpload,
+    [switch]$Publish
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($SkipUpload -and $Publish) { throw '-SkipUpload und -Publish schließen sich aus.' }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 $Root          = $PSScriptRoot
@@ -180,7 +179,16 @@ function Publish-ChromeStore {
     $api = 'https://chromewebstore.googleapis.com'
 
     Write-Step 'Chrome Web Store: hochladen (Entwurf)'
-    $up = Invoke-RestMethod -Method Post -Uri "$api/upload/v2/publishers/$ChromePublisherId/items/${ChromeItemId}:upload" -Headers $headers -InFile $ZipPath -ContentType 'application/zip'
+    try {
+        $up = Invoke-RestMethod -Method Post -Uri "$api/upload/v2/publishers/$ChromePublisherId/items/${ChromeItemId}:upload" -Headers $headers -InFile $ZipPath -ContentType 'application/zip'
+    } catch {
+        $msg = [string]$_.Exception.Message + ' ' + [string]$_.ErrorDetails.Message
+        if ($msg -match 'in review|NOT_UPDATEABLE') {
+            Write-Warn2 'Chrome Web Store: Der Artikel ist aktuell in der Prüfung. Upload und Veröffentlichung sind erst wieder möglich, wenn die Prüfung abgeschlossen ist. Chrome wird übersprungen.'
+            return
+        }
+        throw
+    }
     if ($up.uploadState -eq 'FAILED') { throw ("Chrome-Upload fehlgeschlagen: " + ($up | ConvertTo-Json -Depth 6 -Compress)) }
     Write-Ok ("Upload: " + $up.uploadState)
 
@@ -189,8 +197,59 @@ function Publish-ChromeStore {
         $pub = Invoke-RestMethod -Method Post -Uri "$api/v2/publishers/$ChromePublisherId/items/${ChromeItemId}:publish" -Headers $headers -ContentType 'application/json' -Body '{}'
         Write-Ok ("Veröffentlichung eingereicht: " + ($pub | ConvertTo-Json -Depth 6 -Compress))
     } else {
-        Write-Warn2 'Nicht veröffentlicht (ohne -PublishChrome). Der Upload liegt im Dashboard als Entwurf.'
+        Write-Warn2 'Nicht veröffentlicht (ohne -Publish). Der Upload liegt im Dashboard als Entwurf.'
     }
+}
+
+# ── AMO (listed): Paket validieren, optional als neue Version einreichen ─────
+$AmoSlug = 'mmunblock-pro'
+$AmoApi  = 'https://addons.mozilla.org/api/v5/addons'
+$AmoApprovalNotes = 'Benötigt eine kleine Windows-Komponente (Native Messaging Host, Installer auf GitHub Releases). Ohne sie zeigt die Erweiterung einen Hinweis mit Link zum Installer. Test: Installer ausführen, dann eine beliebige Datei aus dem Internet herunterladen. Die Erweiterung fragt per Benachrichtigung, ob sie entsperrt werden soll.'
+
+function New-AmoJwt {
+    $key = (Get-EnvValue 'AMO-Key').Trim()
+    if ($key -notmatch '^user:') { $key = "user:$key" }
+    $secret = (Get-EnvValue 'AMO-Secret').Trim()
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $b64url = { param([string]$t) [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($t)).TrimEnd('=').Replace('+', '-').Replace('/', '_') }
+    $header  = & $b64url '{"alg":"HS256","typ":"JWT"}'
+    $payload = & $b64url (@{ iss = $key; jti = [guid]::NewGuid().ToString(); iat = $now; exp = $now + 60 } | ConvertTo-Json -Compress)
+    $unsigned = "$header.$payload"
+    $hmac = New-Object System.Security.Cryptography.HMACSHA256 -ArgumentList @(, [Text.Encoding]::UTF8.GetBytes($secret))
+    $sig = [Convert]::ToBase64String($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($unsigned))).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    return "$unsigned.$sig"
+}
+
+function Publish-AmoListed {
+    param([string]$ZipPath, [switch]$Publish)
+    if (-not (Test-Path $ZipPath)) { throw "ZIP fehlt: $ZipPath" }
+
+    Write-Step 'AMO: Paket hochladen (listed, Validierung)'
+    $raw = & curl.exe -s -S -X POST -H ("Authorization: JWT " + (New-AmoJwt)) -F "upload=@$ZipPath" -F 'channel=listed' "$AmoApi/upload/"
+    if ($LASTEXITCODE -ne 0) { throw "AMO-Upload fehlgeschlagen (curl Exitcode $LASTEXITCODE)." }
+    $up = $raw | ConvertFrom-Json
+    if (-not $up.uuid) { throw "AMO-Upload ohne UUID: $raw" }
+    $uuid = $up.uuid
+
+    $st = $null
+    $done = $false
+    for ($i = 0; $i -lt 60 -and -not $done; $i++) {
+        Start-Sleep -Seconds 5
+        $st = Invoke-RestMethod -Method Get -Uri "$AmoApi/upload/$uuid/" -Headers @{ Authorization = 'JWT ' + (New-AmoJwt) }
+        if ($st.processed) { $done = $true }
+    }
+    if (-not $done) { throw 'AMO: Validierung dauert zu lange (Timeout).' }
+    if (-not $st.valid) { throw ('AMO-Validierung fehlgeschlagen: ' + ($st | ConvertTo-Json -Depth 8 -Compress)) }
+    Write-Ok 'AMO: Paket ist valide'
+
+    if (-not $Publish) {
+        Write-Warn2 'AMO nur validiert (ohne -Publish). Keine Einreichung.'
+        return
+    }
+    Write-Step 'AMO: Version einreichen (geht in die Prüfung)'
+    $body = @{ upload = $uuid; approval_notes = $AmoApprovalNotes } | ConvertTo-Json -Compress
+    $null = Invoke-RestMethod -Method Post -Uri "$AmoApi/addon/$AmoSlug/versions/" -Headers @{ Authorization = 'JWT ' + (New-AmoJwt) } -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+    Write-Ok 'AMO: Version eingereicht (wartet auf Prüfung durch Mozilla)'
 }
 
 # ── 1. Voraussetzungen ────────────────────────────────────────────────────────
@@ -219,17 +278,11 @@ if (-not $Dev) {
     if (-not $webExt) { throw 'web-ext nicht gefunden (npm install --global web-ext).' }
     Write-Ok 'web-ext vorhanden'
 
-    if (-not $SkipFirefoxSign) {
-        foreach ($n in 'AMO-Key', 'AMO-Secret') {
-            if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt (oder -SkipFirefoxSign verwenden)." }
+    if (-not $SkipUpload) {
+        foreach ($n in 'AMO-Key', 'AMO-Secret', 'GC-Client', 'GC-Key', 'GC-Refresh') {
+            if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt (oder -SkipUpload verwenden)." }
         }
-        Write-Ok 'AMO-Key und AMO-Secret gesetzt'
-    }
-    if ($UploadChrome -or $PublishChrome) {
-        foreach ($n in 'GC-Client', 'GC-Key', 'GC-Refresh') {
-            if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt (für -UploadChrome/-PublishChrome nötig)." }
-        }
-        Write-Ok 'GC-Client, GC-Key und GC-Refresh gesetzt'
+        Write-Ok 'Store-Zugangsdaten (AMO, Chrome) gesetzt'
     }
     if (-not $SkipExeSign -and -not $SkipExeBuild) {
         if (Test-Path $SignToolPath) {
@@ -274,32 +327,14 @@ foreach ($t in 'chrome', 'edge') {
     Write-Ok "MMUnblockPro-$Version-$t.zip"
 }
 
-if ($UploadChrome -or $PublishChrome) {
-    Publish-ChromeStore -ZipPath (Join-Path $DistDir "MMUnblockPro-$Version-chrome.zip") -Publish:$PublishChrome
+if (-not $SkipUpload) {
+    Publish-ChromeStore -ZipPath (Join-Path $DistDir "MMUnblockPro-$Version-chrome.zip") -Publish:$Publish
 }
 
-if (-not $SkipFirefoxSign) {
-    Write-Step 'Firefox: XPI bei AMO signieren (unlisted)'
-    # AMO erwartet als JWT-Issuer 'user:<id>:<n>'. Das konstante 'user:' wird ergänzt, falls es in 'AMO-Key' fehlt.
-    $amoKey = (Get-EnvValue 'AMO-Key')
-    if ($amoKey) { $amoKey = $amoKey.Trim(); if ($amoKey -notmatch '^user:') { $amoKey = "user:$amoKey" } }
-    $amoSecret = (Get-EnvValue 'AMO-Secret')
-    if ($amoSecret) { $amoSecret = $amoSecret.Trim() }
-    $env:WEB_EXT_API_KEY    = $amoKey
-    $env:WEB_EXT_API_SECRET = $amoSecret
-    try {
-        Invoke-Native $webExt.Source @(
-            'sign',
-            '--source-dir', (Join-Path $BuildDir 'firefox'),
-            '--artifacts-dir', $DistDir,
-            '--channel', 'unlisted')
-    } finally {
-        Remove-Item Env:\WEB_EXT_API_KEY    -ErrorAction SilentlyContinue
-        Remove-Item Env:\WEB_EXT_API_SECRET -ErrorAction SilentlyContinue
-    }
-    Write-Ok 'signiertes XPI erstellt'
+if (-not $SkipUpload) {
+    Publish-AmoListed -ZipPath (Join-Path $DistDir "MMUnblockPro-$Version-firefox.zip") -Publish:$Publish
 } else {
-    Write-Warn2 'Firefox-Signierung übersprungen (-SkipFirefoxSign)'
+    Write-Warn2 'AMO-Upload übersprungen (-SkipUpload)'
 }
 
 # ── 4. .NET-Komponenten ───────────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 ; EdgeExtId   = nur noetig, falls es je einen eigenen Edge-Add-ons-Eintrag gibt. Leer lassen: Edge installiert die
 ;               Erweiterung aus dem Chrome Web Store und nutzt dieselbe ID wie ChromeExtId.
 #ifndef AppVer
-#define AppVer "1.4.4"
+#define AppVer "1.4.6"
 #endif
 #define ChromeExtId "fppeblmghlphmkpllialjpchhmpgagio"
 #define EdgeExtId ""

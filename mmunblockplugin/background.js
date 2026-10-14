@@ -5,6 +5,9 @@
 
 const PENDING_KEY = 'pendingNotifications';
 
+// Firefox unterstützt 'buttons' in Benachrichtigungen nicht (Fehler beim Anlegen).
+const IS_FIREFOX = typeof navigator !== 'undefined' && /Firefox/.test(navigator.userAgent);
+
 // Windows-Komponente (Native Messaging Host)
 const HOST_NAME = 'com.mmunblock';
 const SETUP_URL = 'https://github.com/manfred-mueller/MMUnBlockPro/releases/latest';
@@ -188,24 +191,36 @@ function handleCompletedDownload(delta, item) {
       const notificationId = 'unblock-' + delta.id;
       await addPending(notificationId, filePath);
 
-      chrome.notifications.create(notificationId, {
+      const options = {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
         title: 'Download abgeschlossen',
-        message: `Möchtest du diese Datei entsperren?\n${item.finalUrl || domain}`,
-        buttons: [
+        message: `Möchtest du diese Datei entsperren?`,
+      };
+      if (IS_FIREFOX) {
+        // Firefox: keine Schaltflächen, stattdessen Klick auf die Benachrichtigung
+        options.message = `Möchtest du diese Datei entsperren? Zum Entsperren auf diese Meldung klicken.`;
+      } else {
+        options.requireInteraction = true;
+        options.buttons = [
           { title: '🔒 Jetzt entsperren' },
           { title: 'Ignorieren' }
-        ],
-        requireInteraction: true
-      });
+        ];
+      }
+      chrome.notifications.create(notificationId, options);
     }
   });
 }
 
-chrome.notifications.onClicked.addListener((notificationId) => {
+chrome.notifications.onClicked.addListener(async (notificationId) => {
   if (notificationId === HOST_NOTIFICATION_ID) {
     chrome.tabs.create({ url: SETUP_URL });
+    chrome.notifications.clear(notificationId);
+    return;
+  }
+  if (IS_FIREFOX && notificationId.startsWith('unblock-')) {
+    const filePath = await takePending(notificationId);
+    if (filePath) triggerNativeUnblock(filePath);
     chrome.notifications.clear(notificationId);
   }
 });
