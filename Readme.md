@@ -22,9 +22,9 @@ Die Erweiterung braucht zusätzlich eine kleine Windows-Komponente (Native Messa
 ### Schritt 2: Erweiterung im Browser installieren
 **Mozilla Firefox:** 👉 **[Firefox Add-on Seite (AMO)](https://addons.mozilla.org/de/firefox/addon/mmunblock-pro/)** *(dort auf "Zu Firefox hinzufügen" klicken)*
 
-**Google Chrome:** Die Erweiterung wird über den Chrome Web Store bereitgestellt (nicht gelistet, nur per Link erreichbar); der Link folgt nach der Veröffentlichung. Bis dahin lässt sie sich aus dem Release-Paket (`MMUnblockPro-<Version>-chrome.zip`) als entpackte Erweiterung laden.
+**Google Chrome:** 👉 **[Chrome Web Store: MMUnblock Pro](https://chromewebstore.google.com/detail/mmunblock-pro/fppeblmghlphmkpllialjpchhmpgagio)** *(nicht gelistet, nur über diesen Link erreichbar; dort auf "Zu Chrome hinzufügen" klicken)*
 
-**Microsoft Edge:** Edge kann Erweiterungen aus dem Chrome Web Store installieren. Öffne dazu den Chrome-Web-Store-Link in Edge und bestätige oben den Hinweis „Erweiterungen aus anderen Stores zulassen“. Der Installer öffnet die Seite auf Wunsch direkt in Edge.
+**Microsoft Edge:** Edge kann Erweiterungen aus dem Chrome Web Store installieren. Öffne dazu den Chrome-Web-Store-Link (siehe oben) in Edge und bestätige oben den Hinweis „Erweiterungen aus anderen Stores zulassen“. Der Installer öffnet die Seite auf Wunsch direkt in Edge.
 
 > **Hinweis:** Wurde nur die Erweiterung installiert, weist sie selbst darauf hin: Beim ersten Start öffnet sie die Download-Seite des Installers, danach zeigt sie bei Bedarf ein rotes „!“ am Symbol, eine Benachrichtigung und einen Hinweis im Popup.
 

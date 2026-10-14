@@ -17,6 +17,13 @@ class Program
                 string? filePath = ReadMessage();
                 if (string.IsNullOrEmpty(filePath)) break;
 
+                // Nur einzelne Dateien zulassen. Die CLI würde einen Ordner rekursiv entsperren.
+                if (!File.Exists(filePath))
+                {
+                    SendMessage($"{{\"status\": \"error\", \"message\": \"Pfad ist keine Datei\"}}");
+                    continue;
+                }
+
                 // Der Host geht davon aus, dass die mmunblock.exe im selben Ordner liegt
                 string cliPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "mmunblock.exe");
                 

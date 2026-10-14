@@ -24,6 +24,10 @@
   EXE-Signierung überspringen.
 .PARAMETER SkipInstaller
   Inno-Setup-Build überspringen.
+.PARAMETER UploadChrome
+  Chrome-ZIP in den Chrome Web Store hochladen (Entwurf, nicht veröffentlicht). Benötigt GC-Client, GC-Key, GC-Refresh.
+.PARAMETER PublishChrome
+  Wie -UploadChrome, danach veröffentlichen (geht in die Prüfung). Nur mit Absicht verwenden.
 #>
 [CmdletBinding()]
 param(
@@ -31,7 +35,9 @@ param(
     [switch]$SkipFirefoxSign,
     [switch]$SkipExeBuild,
     [switch]$SkipExeSign,
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$UploadChrome,
+    [switch]$PublishChrome
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,13 +55,16 @@ $SignTimestamp = 'http://time.certum.pl/'
 $SignToolPath  = 'D:\Tools\signtool.exe'   # Fallback: signtool.exe aus dem PATH
 $ExtFiles      = @('background.js', 'popup.html', 'popup.js')
 $ExtDirs       = @('icons')
+$ChromePublisherId = '5227114b-09bf-4a3c-a47f-50613a1b7f0c'  # Publisher-ID aus dem Dashboard
+$ChromeItemId   = 'fppeblmghlphmkpllialjpchhmpgagio'  # Extension-ID
 $ProjectsToPublish = @(
     @{ Name = 'mmunblock';     Proj = 'mmunblock\mmunblock.csproj';         Exe = 'mmunblock\bin\Release\net8.0\win-x64\publish\mmunblock.exe' },
     @{ Name = 'mmunblockhost'; Proj = 'mmunblockhost\mmunblockhost.csproj'; Exe = 'mmunblockhost\bin\Release\net8.0\win-x64\publish\mmunblockhost.exe' }
 )
-# Öffentlicher Schlüssel (nur für Sideload-Ordner von Chrome/Edge -> stabile Extension-ID).
-# ID: eddbjbojbganmlifplgbgjfjgggofmip (muss zu ChromeExtId in MMUnBlockPro.iss passen)
-$DevKey = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqhlCz8aoU5qY0JsEWqZXLvpDxUwGU7Yg4f89XhY1F/Ajpv41j8UdzvU5GI79/R2vL/uCNwi0LeOtPw1IRMdMU1oqbS2yCvn8vWv4sdKGnGWy7sHiG9TV8xd1bMLxdiPOfI7mbe+rwh5jedyoxZWL263oAw8xl95lvoYgRzt0HjgPSdb5EM1czvarHpudWUFRwYgUHAKgToIzsXkrQCbcc7VIujHlzD0iSYYJTZz2Or6YClqUYx2dRrQmb0pNywp4Bcv63EK1PdzHsQ/rE0zWQ3jsTqAsfsm/KE9hO1fiUrxAmmU0jtpIx0OhN9rvmIZt9cvunknFhDpbIjWuzs7vgQIDAQAB'
+# Öffentlicher Schlüssel aus dem Chrome-Web-Store-Dashboard (Reiter 'Paket'). Er gilt auch für die Sideload-Ordner
+# (build\chrome, build\edge), damit die Extension-ID überall gleich ist.
+# ID: fppeblmghlphmkpllialjpchhmpgagio (muss zu ChromeExtId in MMUnBlockPro.iss passen)
+$DevKey = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8Pi8m62v0h7ZWJJhgWb30lOBOKNjIGIDPCxuTtKvl9hsh7US0CWIxAqmLlxPuzYmzDS8HUE9hCHcM7xQQ4JDow8q66jF8l0BFRXyEZJaTXcDlOZImsIW5UFtiB336lws0wNvo/UWYgQ6ZqL65MWUmYnP+Ub6dBS6M76NpS38HH2jGO7M5bcpjx0qytTV7M1R5p4YPjZfV52pQ593B6Nw2TtK1Fyd5Uvj8V3peqQncZmCgPun51ghZFGVLXkLigan3mcTLH/mkfHg8wB0vYy0yDp8hNezW4lU1GB1T62mEtbRYqEvGM3FOxSPwP253sdG1KtXsMO2eqCfvu97O4BSXQIDAQAB'
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -150,6 +159,40 @@ function New-ExtensionDir {
     Write-Utf8NoBom (Join-Path $OutDir 'manifest.json') $json
 }
 
+# ── Chrome Web Store: Upload und optional Veröffentlichung ───────────────────
+function Get-ChromeStoreToken {
+    foreach ($n in 'GC-Client', 'GC-Key', 'GC-Refresh') {
+        if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt." }
+    }
+    $resp = Invoke-RestMethod -Method Post -Uri 'https://oauth2.googleapis.com/token' -Body @{
+        client_id     = (Get-EnvValue 'GC-Client')
+        client_secret = (Get-EnvValue 'GC-Key')
+        refresh_token = (Get-EnvValue 'GC-Refresh')
+        grant_type    = 'refresh_token'
+    }
+    return $resp.access_token
+}
+
+function Publish-ChromeStore {
+    param([string]$ZipPath, [switch]$Publish)
+    if (-not (Test-Path $ZipPath)) { throw "ZIP fehlt: $ZipPath" }
+    $headers = @{ Authorization = 'Bearer ' + (Get-ChromeStoreToken) }
+    $api = 'https://chromewebstore.googleapis.com'
+
+    Write-Step 'Chrome Web Store: hochladen (Entwurf)'
+    $up = Invoke-RestMethod -Method Post -Uri "$api/upload/v2/publishers/$ChromePublisherId/items/${ChromeItemId}:upload" -Headers $headers -InFile $ZipPath -ContentType 'application/zip'
+    if ($up.uploadState -eq 'FAILED') { throw ("Chrome-Upload fehlgeschlagen: " + ($up | ConvertTo-Json -Depth 6 -Compress)) }
+    Write-Ok ("Upload: " + $up.uploadState)
+
+    if ($Publish) {
+        Write-Step 'Chrome Web Store: veröffentlichen (geht in die Prüfung)'
+        $pub = Invoke-RestMethod -Method Post -Uri "$api/v2/publishers/$ChromePublisherId/items/${ChromeItemId}:publish" -Headers $headers -ContentType 'application/json' -Body '{}'
+        Write-Ok ("Veröffentlichung eingereicht: " + ($pub | ConvertTo-Json -Depth 6 -Compress))
+    } else {
+        Write-Warn2 'Nicht veröffentlicht (ohne -PublishChrome). Der Upload liegt im Dashboard als Entwurf.'
+    }
+}
+
 # ── 1. Voraussetzungen ────────────────────────────────────────────────────────
 Write-Step 'Voraussetzungen prüfen'
 if (-not (Test-Path $BaseManifest)) { throw "Basis-Manifest fehlt: $BaseManifest" }
@@ -181,6 +224,12 @@ if (-not $Dev) {
             if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt (oder -SkipFirefoxSign verwenden)." }
         }
         Write-Ok 'AMO-Key und AMO-Secret gesetzt'
+    }
+    if ($UploadChrome -or $PublishChrome) {
+        foreach ($n in 'GC-Client', 'GC-Key', 'GC-Refresh') {
+            if (-not (Get-EnvValue $n)) { throw "Umgebungsvariable '$n' ist nicht gesetzt (für -UploadChrome/-PublishChrome nötig)." }
+        }
+        Write-Ok 'GC-Client, GC-Key und GC-Refresh gesetzt'
     }
     if (-not $SkipExeSign -and -not $SkipExeBuild) {
         if (Test-Path $SignToolPath) {
@@ -225,10 +274,19 @@ foreach ($t in 'chrome', 'edge') {
     Write-Ok "MMUnblockPro-$Version-$t.zip"
 }
 
+if ($UploadChrome -or $PublishChrome) {
+    Publish-ChromeStore -ZipPath (Join-Path $DistDir "MMUnblockPro-$Version-chrome.zip") -Publish:$PublishChrome
+}
+
 if (-not $SkipFirefoxSign) {
     Write-Step 'Firefox: XPI bei AMO signieren (unlisted)'
-    $env:WEB_EXT_API_KEY    = Get-EnvValue 'AMO-Key'
-    $env:WEB_EXT_API_SECRET = Get-EnvValue 'AMO-Secret'
+    # AMO erwartet als JWT-Issuer 'user:<id>:<n>'. Das konstante 'user:' wird ergänzt, falls es in 'AMO-Key' fehlt.
+    $amoKey = (Get-EnvValue 'AMO-Key')
+    if ($amoKey) { $amoKey = $amoKey.Trim(); if ($amoKey -notmatch '^user:') { $amoKey = "user:$amoKey" } }
+    $amoSecret = (Get-EnvValue 'AMO-Secret')
+    if ($amoSecret) { $amoSecret = $amoSecret.Trim() }
+    $env:WEB_EXT_API_KEY    = $amoKey
+    $env:WEB_EXT_API_SECRET = $amoSecret
     try {
         Invoke-Native $webExt.Source @(
             'sign',

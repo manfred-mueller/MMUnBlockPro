@@ -1,6 +1,6 @@
 # Store-Einreichung MMUnblock Pro 1.4.1
 
-Pakete (ohne `key`, geprüft): `dist\1.4.1\MMUnblockPro-1.4.1-chrome.zip` und `...-edge.zip`
+Pakete (ohne `key`, geprüft): `dist\1.4.1\MMUnblockPro-1.4.1-chrome.zip` (Edge: kein eigener Eintrag, Edge nutzt den Chrome Web Store)
 
 ## Texte (für beide Stores)
 
@@ -44,7 +44,6 @@ Entfernt nach Downloads die Windows-Zonenmarkierung der heruntergeladenen Datei 
 ## Noch selbst zu erstellen (Pflicht)
 - Screenshots 1280×800 oder 640×400 (mind. 1, besser 3: Benachrichtigung, Whitelist-Popup, entsperrte Datei)
 - Chrome: kleine Werbekachel 440×280 (Marquee 1400×560 optional)
-- Edge: Logo 300×300 (Icon 128 liegt vor), Screenshots 1280×800 oder 640×400
 
 ## Ablauf Chrome Web Store
 1. https://chrome.google.com/webstore/devconsole → Neues Element → ZIP hochladen
@@ -52,17 +51,11 @@ Entfernt nach Downloads die Windows-Zonenmarkierung der heruntergeladenen Datei 
 3. Reiter „Paket“: dort den **öffentlichen Schlüssel** kopieren. Damit die Extension-ID zum Installer passt, diesen Wert als `$DevKey` in Build-All.ps1 eintragen und `ChromeExtId` in der .iss auf die Store-ID setzen.
 4. Zur Überprüfung einreichen (dauert meist einige Tage)
 
-## Ablauf Edge Add-ons
-1. https://partner.microsoft.com/dashboard/microsoftedge/overview (Programm ggf. einmalig anmelden)
-2. Neue Erweiterung → ZIP hochladen → Verfügbarkeit, Eigenschaften, Store-Listing ausfüllen
-3. Hinweise für Tester: „Needs the Windows helper MMUnblockPro_Setup.exe from GitHub releases; install it, then download any file from the internet to see the notification.“
-4. Nach Veröffentlichung die Edge-ID in `EdgeExtId` (.iss) eintragen und Installer neu bauen
-
 ## Wichtig für die Prüfung
 Die Erweiterung ist ohne die Windows-Komponente funktionslos. Das unbedingt in Beschreibung und Testhinweisen erwähnen, sonst droht Ablehnung wegen „nicht funktionsfähig“.
 Seit 1.4.1 weist die Erweiterung selbst darauf hin: beim ersten Start öffnet sie die Installer-Seite (GitHub Releases), danach Hinweis per Benachrichtigung, Badge „!“ und Popup. Das in den Testhinweisen erwähnen.
 
 ## Nach der Veröffentlichung
-1. Chrome-/Edge-Store-URL in `MMUnBlockPro.iss` (`ChromeStoreUrl`, `EdgeStoreUrl`) eintragen, außerdem `ChromeExtId`/`EdgeExtId` auf die Store-IDs setzen.
+1. Chrome-Store-URL in `MMUnBlockPro.iss` (`ChromeStoreUrl`) eintragen. Die ID `ChromeExtId` ist schon gesetzt. Die URL wird auch für Edge verwendet.
 2. Links in der README ergänzen.
 3. `Build-All.ps1` erneut laufen lassen, Installer neu veröffentlichen.

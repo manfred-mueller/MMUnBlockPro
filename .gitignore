@@ -12,6 +12,7 @@
 *.env
 # Persoenliches Hilfsskript (ueberschreibt die README) - nicht einchecken
 Readme.ps1
+STORE-SUBMISSION.md
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

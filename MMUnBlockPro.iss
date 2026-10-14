@@ -1,19 +1,19 @@
-; ─── Inno Setup Definition für MMUnblockPro ──────────────────────────────────
+﻿; ─── Inno Setup Definition für MMUnblockPro ──────────────────────────────────
 
 ; Extension-IDs fuer Chrome/Edge (allowed_origins im Host-Manifest).
-; ChromeExtId = ID aus dem Manifest-"key" (Sideload + Chrome Web Store, wenn mit key hochgeladen).
-; EdgeExtId   = ID nach Veroeffentlichung im Edge-Add-ons-Store eintragen (leer = nicht verwendet).
+; ChromeExtId = Store-ID (Chrome Web Store Dashboard); der passende Schluessel steht als $DevKey in Build-All.ps1.
+; EdgeExtId   = nur noetig, falls es je einen eigenen Edge-Add-ons-Eintrag gibt. Leer lassen: Edge installiert die
+;               Erweiterung aus dem Chrome Web Store und nutzt dieselbe ID wie ChromeExtId.
 #ifndef AppVer
-#define AppVer "1.4.1"
+#define AppVer "1.4.4"
 #endif
-#define ChromeExtId "eddbjbojbganmlifplgbgjfjgggofmip"
+#define ChromeExtId "fppeblmghlphmkpllialjpchhmpgagio"
 #define EdgeExtId ""
 
 ; Store-Links fuer den Abschlussdialog des Installers. Leer = Eintrag entfaellt.
-; Chrome/Edge: nach der Veroeffentlichung (nicht gelistet/hidden) die direkte Store-URL eintragen.
+; ChromeStoreUrl: nach der Veroeffentlichung (nicht gelistet) die direkte Store-URL eintragen. Sie wird auch fuer Edge verwendet.
 #define FirefoxStoreUrl "https://addons.mozilla.org/de/firefox/addon/mmunblock-pro/"
-#define ChromeStoreUrl ""
-#define EdgeStoreUrl ""
+#define ChromeStoreUrl "https://chromewebstore.google.com/detail/mmunblock-pro/fppeblmghlphmkpllialjpchhmpgagio"
 
 [Setup]
 AppId={{F9B000EB-33B8-4250-B957-C153B1948945}}
@@ -36,6 +36,7 @@ WizardImageFile=D:\Bilder\wz_nass-ek.bmp
 WizardSmallImageFile=D:\Bilder\wz_leer_small.bmp
 ;End adjustments for showing the logo
 WizardStyle=modern
+ChangesEnvironment=yes
 SignTool=Certum
 
 [Files]
@@ -58,8 +59,8 @@ Filename: "{code:GetBrowserExe|firefox}"; Parameters: """{#FirefoxStoreUrl}"""; 
 #if ChromeStoreUrl != ""
 Filename: "{code:GetBrowserExe|chrome}"; Parameters: """{#ChromeStoreUrl}"""; Description: "Erweiterung für Chrome installieren (Store-Seite öffnen)"; Flags: nowait postinstall skipifsilent; Check: HasBrowser('chrome')
 #endif
-#if EdgeStoreUrl != ""
-Filename: "{code:GetBrowserExe|msedge}"; Parameters: """{#EdgeStoreUrl}"""; Description: "Erweiterung für Edge installieren (Add-ons-Seite öffnen)"; Flags: nowait postinstall skipifsilent; Check: HasBrowser('msedge')
+#if ChromeStoreUrl != ""
+Filename: "{code:GetBrowserExe|msedge}"; Parameters: """{#ChromeStoreUrl}"""; Description: "Erweiterung für Edge installieren (Chrome Web Store öffnen, dort „Andere Stores zulassen“ bestätigen)"; Flags: nowait postinstall skipifsilent; Check: HasBrowser('msedge')
 #endif
 
 [UninstallDelete]
@@ -88,6 +89,51 @@ begin
   Result := (Exe <> '') and FileExists(Exe);
 end;
 
+// PATH-Helfer: Installationsordner im Benutzer-PATH (HKCU) eintragen bzw. entfernen
+function PathListContains(PathList, Dir: String): Boolean;
+begin
+  Result := Pos(';' + Uppercase(Dir) + ';', ';' + Uppercase(PathList) + ';') > 0;
+end;
+
+function PathListRemove(PathList, Dir: String): String;
+var
+  Work: String;
+begin
+  Work := ';' + PathList + ';';
+  StringChangeEx(Work, ';' + Dir + ';', ';', False);
+  Result := Copy(Work, 2, Length(Work) - 2);
+end;
+
+procedure AddToUserPath;
+var
+  PathList, AppDir: String;
+begin
+  AppDir := ExpandConstant('{app}');
+  PathList := '';
+  RegQueryStringValue(HKCU, 'Environment', 'Path', PathList);
+  if not PathListContains(PathList, AppDir) then
+  begin
+    if (PathList <> '') and (PathList[Length(PathList)] <> ';') then
+      PathList := PathList + ';';
+    PathList := PathList + AppDir;
+    if not RegWriteExpandStringValue(HKCU, 'Environment', 'Path', PathList) then
+      Log('Fehler beim Eintragen in den Benutzer-PATH');
+  end;
+end;
+
+procedure RemoveFromUserPath;
+var
+  PathList, NewPathList: String;
+begin
+  PathList := '';
+  if RegQueryStringValue(HKCU, 'Environment', 'Path', PathList) then
+  begin
+    NewPathList := PathListRemove(PathList, ExpandConstant('{app}'));
+    if NewPathList <> PathList then
+      RegWriteExpandStringValue(HKCU, 'Environment', 'Path', NewPathList);
+  end;
+end;
+
 // 2. Das JSON-Manifest dynamisch während der Installation schreiben
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -100,6 +146,7 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    AddToUserPath;
     JsonFilePath := ExpandConstant('{app}\com.mmunblock.json');
     
     // Den Pfad holen und alle einfachen Backslashes durch doppelte Backslashes ersetzen
@@ -195,4 +242,10 @@ begin
       Sleep(1000);
     end;
   end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    RemoveFromUserPath;
 end;

@@ -48,10 +48,15 @@ function notifyHostProblem(kind) {
 
 // Prueft, ob der Host erreichbar ist. Ein bestehender Host beendet sich bei
 // der Test-Nachricht ohne Antwort ("Native host has exited") - das zaehlt als vorhanden.
-function checkHost(openSetupTab) {
+function probeHost(callback) {
   chrome.runtime.sendNativeMessage(HOST_NAME, { ping: true }, () => {
     const err = chrome.runtime.lastError;
-    const kind = err ? classifyHostError(err.message) : 'ok';
+    callback(err ? classifyHostError(err.message) : 'ok', err ? err.message : '');
+  });
+}
+
+function checkHost(openSetupTab) {
+  probeHost((kind) => {
     const problem = kind === 'missing' || kind === 'forbidden';
     setHostBadge(problem);
     if (problem && openSetupTab) chrome.tabs.create({ url: SETUP_URL });
@@ -92,59 +97,111 @@ async function takePending(id) {
   return filePath;
 }
 
-// Exakte Domain oder Subdomain (github.com trifft api.github.com, aber nicht github.com.evil.example)
-function isDomainWhitelisted(domain, whitelist) {
-  const host = (domain || '').toLowerCase();
+// Eintrag: "github.com" (Domain inkl. Subdomains) oder "github.com/benutzer/" (Pfad-Präfix, endet mit /)
+function parseWhitelistEntry(entry) {
+  const e = String(entry).trim().toLowerCase().replace(/^\*?\./, '');
+  const slash = e.indexOf('/');
+  if (slash === -1) return { host: e, path: '' };
+  return { host: e.slice(0, slash), path: e.slice(slash) };
+}
+
+// Passt die URL zum Eintrag? Domain-Teil: exakt oder Subdomain. Pfad-Teil: nur an Segmentgrenzen.
+function urlMatchesEntry(urlString, entry) {
+  let u;
+  try { u = new URL(urlString); } catch (e) { return false; }
+  const { host, path } = parseWhitelistEntry(entry);
   if (!host) return false;
+  const uh = u.hostname.toLowerCase();
+  if (!(uh === host || uh.endsWith('.' + host))) return false;
+  if (path === '') return true;
+  const p = path.endsWith('/') ? path : path + '/';
+  const pn = u.pathname.toLowerCase();
+  return pn.startsWith(p) || pn === p.slice(0, -1);
+}
+
+// GitHub leitet Release-Downloads auf diese Hosts weiter. Sie gelten nur für Pfad-Einträge auf github.com.
+const GITHUB_RELEASE_HOSTS = ['release-assets.githubusercontent.com', 'objects.githubusercontent.com'];
+
+function isGithubReleaseHost(urlString) {
+  try {
+    return GITHUB_RELEASE_HOSTS.includes(new URL(urlString).hostname.toLowerCase());
+  } catch (e) {
+    return false;
+  }
+}
+
+// Domain-Einträge: wie bisher nur die Ausgangs-URL. Pfad-Einträge: Ausgangs-URL muss passen,
+// und die finale URL (nach Weiterleitungen) muss passen ODER auf einen GitHub-Release-Host zeigen (nur bei github.com-Pfaden).
+function isWhitelistedDownload(item, whitelist) {
+  const origin = item.url || '';
+  const finalUrl = item.finalUrl || origin;
   return whitelist.some((entry) => {
-    const allowed = String(entry).trim().toLowerCase().replace(/^\*?\./, '');
-    return allowed.length > 0 && (host === allowed || host.endsWith('.' + allowed));
+    const { host, path } = parseWhitelistEntry(entry);
+    if (path === '') return urlMatchesEntry(origin, entry);
+    if (!urlMatchesEntry(origin, entry)) return false;
+    if (urlMatchesEntry(finalUrl, entry)) return true;
+    return host === 'github.com' && isGithubReleaseHost(finalUrl);
   });
 }
 
+// Fertiger Download: Zuerst pruefen, ob die Windows-Komponente erreichbar ist.
+// Fehlt sie, wird NICHT gefragt, ob die Datei entsperrt werden soll (das ginge ohnehin nicht),
+// sondern nur auf den Installer hingewiesen. Der Installer selbst loest keinen Hinweis aus.
 chrome.downloads.onChanged.addListener((delta) => {
-  if (delta.state && delta.state.current === 'complete') {
+  if (!(delta.state && delta.state.current === 'complete')) return;
 
-    chrome.downloads.search({ id: delta.id }, (results) => {
-      if (!results || !results[0]) return;
+  chrome.downloads.search({ id: delta.id }, (results) => {
+    if (!results || !results[0]) return;
+    const item = results[0];
 
-      const fileUrl = results[0].url;
-      const filePath = results[0].filename;
-
-      let domain = "";
-      try {
-        domain = new URL(fileUrl).hostname;
-      } catch (e) {
-        console.error("Ungültige URL", fileUrl);
+    probeHost((kind) => {
+      if (kind === 'missing' || kind === 'forbidden') {
+        setHostBadge(true);
+        if (!/MMUnblockPro_Setup/i.test(item.filename || '')) notifyHostProblem(kind);
+        return;
       }
-
-      chrome.storage.local.get(['whitelist'], async (storage) => {
-        const whitelist = storage.whitelist || [];
-        const isWhitelisted = isDomainWhitelisted(domain, whitelist);
-
-        if (isWhitelisted) {
-          console.log(`Vollautomatisch entsperrt (Whitelist): ${domain}`);
-          triggerNativeUnblock(filePath);
-        } else {
-          const notificationId = 'unblock-' + delta.id;
-          await addPending(notificationId, filePath);
-
-          chrome.notifications.create(notificationId, {
-            type: 'basic',
-            iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-            title: 'Download abgeschlossen',
-            message: `Möchtest du diese Datei entsperren?\n${results[0].finalUrl || domain}`,
-            buttons: [
-              { title: '🔒 Jetzt entsperren' },
-              { title: 'Ignorieren' }
-            ],
-            requireInteraction: true
-          });
-        }
-      });
+      setHostBadge(false);
+      handleCompletedDownload(delta, item);
     });
-  }
+  });
 });
+
+function handleCompletedDownload(delta, item) {
+  const fileUrl = item.url;
+  const filePath = item.filename;
+
+  let domain = "";
+  try {
+    domain = new URL(fileUrl).hostname;
+  } catch (e) {
+    console.error("Ungültige URL", fileUrl);
+  }
+
+  chrome.storage.local.get(['whitelist'], async (storage) => {
+    const whitelist = storage.whitelist || [];
+    const isWhitelisted = isWhitelistedDownload(item, whitelist);
+
+    if (isWhitelisted) {
+      console.log(`Vollautomatisch entsperrt (Whitelist): ${domain}`);
+      triggerNativeUnblock(filePath);
+    } else {
+      const notificationId = 'unblock-' + delta.id;
+      await addPending(notificationId, filePath);
+
+      chrome.notifications.create(notificationId, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+        title: 'Download abgeschlossen',
+        message: `Möchtest du diese Datei entsperren?\n${item.finalUrl || domain}`,
+        buttons: [
+          { title: '🔒 Jetzt entsperren' },
+          { title: 'Ignorieren' }
+        ],
+        requireInteraction: true
+      });
+    }
+  });
+}
 
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (notificationId === HOST_NOTIFICATION_ID) {
